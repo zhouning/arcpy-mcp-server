@@ -8,6 +8,15 @@ $environmentFile = Join-Path $installRoot "config\server.env"
 $pidFile = Join-Path $installRoot "server.pid"
 $logDirectory = Join-Path $installRoot "logs"
 $projectPython = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
+$launcherLog = Join-Path $logDirectory "launcher.log"
+New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+
+function Write-LauncherLog([string]$Message) {
+    $timestamp = [DateTime]::UtcNow.ToString("o")
+    Add-Content -LiteralPath $launcherLog -Value "$timestamp $Message"
+}
+
+Write-LauncherLog "launcher entered"
 
 if (-not (Test-Path -LiteralPath $environmentFile)) {
     throw "Missing $environmentFile. Run scripts\bootstrap.ps1 first."
@@ -15,6 +24,7 @@ if (-not (Test-Path -LiteralPath $environmentFile)) {
 if (-not (Test-Path -LiteralPath $projectPython)) {
     throw "Missing gateway environment. Run scripts\bootstrap.ps1 first."
 }
+Write-LauncherLog "prerequisite files verified"
 
 if (Test-Path -LiteralPath $pidFile) {
     $recordedPid = [int](Get-Content -Raw -LiteralPath $pidFile)
@@ -24,6 +34,7 @@ if (Test-Path -LiteralPath $pidFile) {
     }
     Remove-Item -LiteralPath $pidFile -Force
 }
+Write-LauncherLog "PID state verified"
 
 foreach ($line in Get-Content -LiteralPath $environmentFile) {
     if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) {
@@ -35,10 +46,11 @@ foreach ($line in Get-Content -LiteralPath $environmentFile) {
     }
     [Environment]::SetEnvironmentVariable($parts[0], $parts[1], "Process")
 }
+Write-LauncherLog "environment loaded"
 
-New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 $stdoutLog = Join-Path $logDirectory "server.stdout.log"
 $stderrLog = Join-Path $logDirectory "server.stderr.log"
+Write-LauncherLog "starting gateway process"
 $process = Start-Process `
     -FilePath $projectPython `
     -ArgumentList @("-m", "arcpy_mcp_server") `
@@ -47,5 +59,6 @@ $process = Start-Process `
     -RedirectStandardOutput $stdoutLog `
     -RedirectStandardError $stderrLog `
     -PassThru
+Write-LauncherLog "gateway process started: PID $($process.Id)"
 [IO.File]::WriteAllText($pidFile, [string]$process.Id)
 Write-Host "ArcPy MCP started as PID $($process.Id)."

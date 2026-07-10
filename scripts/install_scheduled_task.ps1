@@ -68,6 +68,8 @@ $principal = New-ScheduledTaskPrincipal `
 $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -MultipleInstances IgnoreNew `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
     -RestartCount 3 `
     -RestartInterval (New-TimeSpan -Minutes 1)
 

@@ -80,6 +80,8 @@ def test_install_script_limits_firewall_and_registers_current_user_task():
     assert "New-ScheduledTaskTrigger -AtLogOn" in content
     assert "RestartCount 3" in content
     assert "RestartInterval" in content
+    assert "-AllowStartIfOnBatteries" in content
+    assert "-DontStopIfGoingOnBatteries" in content
     assert "-LogonType Interactive" in content
     assert "InteractiveToken" not in content
     assert "-WindowStyle Hidden" in content
@@ -93,6 +95,9 @@ def test_lifecycle_scripts_use_external_config_and_recorded_pid():
     assert "server.env" in start
     assert "SetEnvironmentVariable" in start
     assert "server.pid" in start
+    assert "launcher.log" in start
+    assert "starting gateway process" in start
+    assert "gateway process started" in start
     assert ".venv\\Scripts\\python.exe" in start
     assert "uv.exe" not in start
     assert "-m" in start and "arcpy_mcp_server" in start
@@ -102,3 +107,7 @@ def test_lifecycle_scripts_use_external_config_and_recorded_pid():
     assert "Get-ScheduledTask" in status
     assert "Get-NetTCPConnection" in status
     assert "/healthz" in status
+    assert "--noproxy" in status
+    assert "--ssl-no-revoke" in status
+    assert "--cacert" in status
+    assert "--insecure" not in status

@@ -30,9 +30,11 @@ Write-Host "TCP 8765: $(if ($listener) { 'listening' } else { 'not listening' })
 
 if (Test-Path -LiteralPath $caCertificate) {
     $health = & curl.exe `
+        --noproxy "*" `
         --silent `
         --show-error `
         --max-time 5 `
+        --ssl-no-revoke `
         --cacert $caCertificate `
         "https://192.168.25.228:8765/healthz" 2>&1
     Write-Host "HTTPS health: $health"
