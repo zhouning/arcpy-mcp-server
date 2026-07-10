@@ -128,9 +128,14 @@ class ArtifactService:
             raise ValueError("artifact is not ready")
         base = Path(record.content_root)
         resolved = self.workspace.resolve_relative(base, relative_path)
-        if not resolved.exists():
-            raise ValueError("artifact-relative path does not exist")
-        return resolved
+        if resolved.exists():
+            return resolved
+        for parent in resolved.parents:
+            if parent == base:
+                break
+            if parent.suffix.casefold() == ".gdb" and parent.is_dir():
+                return resolved
+        raise ValueError("artifact-relative path does not exist")
 
     async def list_artifacts(self) -> list[ArtifactRecord]:
         return [

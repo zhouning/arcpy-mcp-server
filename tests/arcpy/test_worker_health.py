@@ -2,6 +2,8 @@ import json
 import subprocess
 from pathlib import Path
 
+from tests.arcpy.process_helpers import stop_process
+
 
 ARCPY_PYTHON = Path(
     r"D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe"
@@ -20,8 +22,7 @@ def test_worker_reports_arcgis_371_capabilities():
     try:
         ready = json.loads(process.stdout.readline())
     finally:
-        process.terminate()
-        process.wait(timeout=10)
+        stop_process(process)
 
     assert ready["type"] == "ready"
     assert ready["payload"]["install"]["Version"] == "3.7.1"

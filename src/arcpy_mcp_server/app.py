@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -18,6 +20,9 @@ from .jobs import JobRunner, JobService
 from .mcp_tools import ToolServices, register_tools
 from .worker_supervisor import WorkerSupervisor
 from .workspace import Workspace
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -82,14 +87,35 @@ def build_services(
 
 
 def create_mcp(settings: Settings, services: Services) -> FastMCP:
+    async def clean_artifacts() -> None:
+        while True:
+            await asyncio.sleep(3600)
+            try:
+                await services.artifacts.cleanup_expired(
+                    settings.retention_days,
+                    settings.incomplete_upload_hours,
+                )
+            except Exception:
+                LOGGER.exception("artifact retention cleanup failed")
+
     @asynccontextmanager
     async def lifespan(_server: FastMCP) -> AsyncIterator[dict]:
         await services.database.start()
         await services.jobs.reconcile_after_restart()
         await services.runner.start()
+        await services.artifacts.cleanup_expired(
+            settings.retention_days,
+            settings.incomplete_upload_hours,
+        )
+        cleanup_task = asyncio.create_task(clean_artifacts())
         try:
             yield {"services": services}
         finally:
+            cleanup_task.cancel()
+            try:
+                await cleanup_task
+            except asyncio.CancelledError:
+                pass
             await services.runner.stop()
             await services.database.stop()
 

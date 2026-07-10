@@ -139,3 +139,24 @@ async def test_running_job_can_be_cancelled_and_worker_recovers(tmp_path):
     assert following_done.result["value"] == 4
     await runner.stop()
     await db.stop()
+
+
+async def test_worker_events_are_persisted_without_absolute_paths(tmp_path):
+    db, jobs, runner, _ = await make_runner(tmp_path)
+    try:
+        job = await runner.submit("delay", {"value": 5})
+        await wait_for_status(jobs, job.id, {JobStatus.SUCCEEDED})
+        events = await jobs.events(job.id)
+
+        worker_events = [
+            event for event in events if event["event_type"] == "worker_event"
+        ]
+        assert worker_events
+        assert worker_events[0]["payload"] == {
+            "stage": "started",
+            "path": "work",
+        }
+        assert str(tmp_path) not in str(events)
+    finally:
+        await runner.stop()
+        await db.stop()

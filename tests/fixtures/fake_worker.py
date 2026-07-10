@@ -16,7 +16,24 @@ for line in sys.stdin:
     tool_id = request["tool_id"]
     if tool_id == "hang":
         time.sleep(60)
+    elif tool_id == "malformed":
+        sys.stdout.write("not-json\n")
+        sys.stdout.flush()
+    elif tool_id == "partial_crash":
+        with open(request["parameters"]["output_path"], "wb") as output:
+            output.write(b"partial")
+        os._exit(8)
     elif tool_id == "delay":
+        emit(
+            {
+                "type": "event",
+                "job_id": job_id,
+                "payload": {
+                    "stage": "started",
+                    "path": request["parameters"].get("work_dir", ""),
+                },
+            }
+        )
         time.sleep(0.25)
         emit(
             {

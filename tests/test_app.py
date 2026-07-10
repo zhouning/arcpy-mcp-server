@@ -2,6 +2,7 @@ import hashlib
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit
+from unittest.mock import AsyncMock
 
 import httpx
 
@@ -113,3 +114,13 @@ async def test_signed_artifact_upload_does_not_require_bearer(tmp_path):
 
     assert response.status_code == 204
     assert response.headers["Upload-Offset"] == str(len(payload))
+
+
+async def test_application_lifespan_runs_artifact_retention_cleanup(tmp_path):
+    app = make_app(tmp_path)
+    app.state.services.artifacts.cleanup_expired = AsyncMock(return_value=[])
+
+    async with app.router.lifespan_context(app):
+        pass
+
+    app.state.services.artifacts.cleanup_expired.assert_awaited_once_with(7, 24)

@@ -1,4 +1,6 @@
 import asyncio
+import inspect
+import os
 import shutil
 import uuid
 from copy import deepcopy
@@ -10,6 +12,7 @@ from .db import Database
 from .models import JobRecord, JobStatus
 from .worker_supervisor import (
     WorkerExecutionError,
+    WorkerMessage,
     WorkerSupervisor,
 )
 from .workspace import Workspace
@@ -202,6 +205,52 @@ class JobRunner:
         self.task: asyncio.Task | None = None
         self.current_job_id: str | None = None
         self._cancel_lock = asyncio.Lock()
+        previous_event_callback = supervisor.event_callback
+
+        async def event_callback(message: WorkerMessage) -> None:
+            await self._record_worker_event(message)
+            if previous_event_callback is not None:
+                result = previous_event_callback(message)
+                if inspect.isawaitable(result):
+                    await result
+
+        supervisor.event_callback = event_callback
+
+    def _clean_output(self, job_id: str) -> None:
+        output = self.workspace.job_root(job_id) / "output"
+        if output.exists():
+            shutil.rmtree(output)
+        output.mkdir(parents=True, exist_ok=True)
+
+    def _sanitize_event_value(self, job_id: str, value):
+        if isinstance(value, dict):
+            return {
+                key: self._sanitize_event_value(job_id, item)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [
+                self._sanitize_event_value(job_id, item) for item in value
+            ]
+        if not isinstance(value, str):
+            return value
+        path = Path(value)
+        if not path.is_absolute():
+            return value
+        root = self.workspace.job_root(job_id).resolve()
+        resolved = path.resolve(strict=False)
+        try:
+            if os.path.commonpath([root, resolved]) == str(root):
+                return resolved.relative_to(root).as_posix()
+        except ValueError:
+            pass
+        return "[redacted-path]"
+
+    async def _record_worker_event(self, message: WorkerMessage) -> None:
+        if message.job_id is None:
+            return
+        payload = self._sanitize_event_value(message.job_id, message.payload)
+        await self.db.append_event(message.job_id, "worker_event", payload)
 
     async def start(self) -> None:
         await self.supervisor.start()
@@ -243,10 +292,7 @@ class JobRunner:
                 job_id, JobStatus.CANCELLING
             )
             await self.supervisor.stop()
-            output = self.workspace.job_root(job_id) / "output"
-            if output.exists():
-                shutil.rmtree(output)
-            output.mkdir(parents=True, exist_ok=True)
+            self._clean_output(job_id)
             return await self.jobs.transition(
                 job_id, JobStatus.CANCELLED
             )
@@ -269,6 +315,7 @@ class JobRunner:
                         JobStatus.CANCELLED,
                         JobStatus.CANCELLING,
                     }:
+                        self._clean_output(job.id)
                         await self.jobs.transition(
                             job.id,
                             JobStatus.FAILED,
@@ -331,6 +378,7 @@ class JobRunner:
                 JobStatus.CANCELLED,
             }:
                 return
+            self._clean_output(job.id)
             await self.jobs.transition(
                 job.id,
                 JobStatus.TIMED_OUT,
@@ -343,6 +391,7 @@ class JobRunner:
                 JobStatus.CANCELLED,
             }:
                 return
+            self._clean_output(job.id)
             await self.jobs.transition(
                 job.id,
                 JobStatus.FAILED,
@@ -355,6 +404,7 @@ class JobRunner:
                 JobStatus.CANCELLED,
             }:
                 return
+            self._clean_output(job.id)
             await self.jobs.transition(
                 job.id,
                 JobStatus.FAILED,

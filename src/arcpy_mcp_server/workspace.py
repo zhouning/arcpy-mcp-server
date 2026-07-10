@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import stat
 import zipfile
@@ -35,9 +36,10 @@ class Workspace:
             or os.path.isabs(relative)
             or ":" in relative
             or relative.startswith("\\\\")
+            or re.search(r"%[0-9A-Fa-f]{2}", relative)
         ):
             raise ValueError(
-                "absolute, drive-prefixed, and UNC paths are rejected"
+                "absolute, encoded, drive-prefixed, and UNC paths are rejected"
             )
         root = base.resolve()
         candidate = (root / relative).resolve(strict=False)

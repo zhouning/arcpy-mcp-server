@@ -2,6 +2,8 @@ import json
 import subprocess
 from pathlib import Path
 
+from tests.arcpy.process_helpers import stop_process
+
 
 ARCPY_PYTHON = Path(
     r"D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe"
@@ -62,8 +64,7 @@ raster.save(sys.argv[1])
         json.loads(process.stdout.readline())
         result = json.loads(process.stdout.readline())
     finally:
-        process.terminate()
-        process.wait(timeout=10)
+        stop_process(process)
 
     assert result["type"] == "result"
     assert output_raster.exists()

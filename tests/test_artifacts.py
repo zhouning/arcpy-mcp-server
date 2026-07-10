@@ -1,6 +1,8 @@
 import hashlib
+import shutil
 import zipfile
 from datetime import timedelta
+from pathlib import Path
 
 from arcpy_mcp_server.artifacts import ArtifactService
 from arcpy_mcp_server.auth import ArtifactSigner
@@ -88,3 +90,36 @@ async def test_cleanup_deletes_expired_unreferenced_artifact(tmp_path):
     assert deleted == [completed.id]
     assert (await db.get_artifact(completed.id)).state is ArtifactState.DELETED
     await db.stop()
+
+
+async def test_ready_path_allows_virtual_dataset_inside_file_geodatabase(tmp_path):
+    db, service = await make_service(tmp_path)
+    try:
+        geodatabase = tmp_path / "dataset.gdb"
+        geodatabase.mkdir()
+        (geodatabase / "gdb").write_bytes(b"fixture")
+        archive = Path(
+            shutil.make_archive(
+                str(tmp_path / "dataset"),
+                "zip",
+                root_dir=tmp_path,
+                base_dir=geodatabase.name,
+            )
+        )
+        payload = archive.read_bytes()
+        created = await service.create_upload(
+            archive.name,
+            len(payload),
+            hashlib.sha256(payload).hexdigest(),
+            "application/zip",
+        )
+        await service.append_upload(created.id, 0, payload)
+        ready = await service.complete_upload(created.id)
+        resolved = await service.resolve_ready_path(
+            ready.id, "dataset.gdb/feature_class"
+        )
+
+        assert resolved.name == "feature_class"
+        assert resolved.parent.is_dir()
+    finally:
+        await db.stop()

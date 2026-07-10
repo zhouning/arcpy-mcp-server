@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.arcpy.process_helpers import stop_process
+
 
 ARCPY_PYTHON = Path(
     r"D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe"
@@ -44,18 +46,7 @@ with arcpy.da.InsertCursor(feature_class, ["SHAPE@XY"]) as cursor:
         capture_output=True,
         text=True,
     )
-    yield feature_class
-    cleanup = (
-        "import arcpy, sys; "
-        "arcpy.management.Delete(sys.argv[1]) "
-        "if arcpy.Exists(sys.argv[1]) else None"
-    )
-    subprocess.run(
-        [str(ARCPY_PYTHON), "-c", cleanup, str(geodatabase)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    return feature_class
 
 
 def test_worker_buffers_two_features(point_feature_class, tmp_path):
@@ -87,8 +78,7 @@ def test_worker_buffers_two_features(point_feature_class, tmp_path):
         event = json.loads(process.stdout.readline())
         result = json.loads(process.stdout.readline())
     finally:
-        process.terminate()
-        process.wait(timeout=10)
+        stop_process(process)
 
     assert event["type"] == "event"
     assert result["type"] == "result"
