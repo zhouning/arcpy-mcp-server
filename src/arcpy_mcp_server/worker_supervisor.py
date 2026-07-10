@@ -33,6 +33,7 @@ class WorkerSupervisor:
         self.process: asyncio.subprocess.Process | None = None
         self.capabilities: dict = {}
         self._execute_lock = asyncio.Lock()
+        self._lifecycle_lock = asyncio.Lock()
         self._stderr_task: asyncio.Task | None = None
 
     @property
@@ -40,6 +41,10 @@ class WorkerSupervisor:
         return self.process.pid if self.process else None
 
     async def start(self) -> None:
+        async with self._lifecycle_lock:
+            await self._start_unlocked()
+
+    async def _start_unlocked(self) -> None:
         if self.process and self.process.returncode is None:
             return
         self.process = await asyncio.create_subprocess_exec(
@@ -65,8 +70,14 @@ class WorkerSupervisor:
             raise
 
     async def stop(self) -> None:
+        async with self._lifecycle_lock:
+            await self._stop_unlocked()
+
+    async def _stop_unlocked(self) -> None:
         process = self.process
+        stderr_task = self._stderr_task
         self.process = None
+        self._stderr_task = None
         self.capabilities = {}
         if process is not None and process.returncode is None:
             process.terminate()
@@ -75,15 +86,15 @@ class WorkerSupervisor:
             except TimeoutError:
                 process.kill()
                 await process.wait()
-        if self._stderr_task is not None:
-            self._stderr_task.cancel()
+        if stderr_task is not None:
+            stderr_task.cancel()
             with suppress(asyncio.CancelledError):
-                await self._stderr_task
-            self._stderr_task = None
+                await stderr_task
 
     async def restart(self) -> None:
-        await self.stop()
-        await self.start()
+        async with self._lifecycle_lock:
+            await self._stop_unlocked()
+            await self._start_unlocked()
 
     async def _read_message(self) -> WorkerMessage:
         if self.process is None or self.process.stdout is None:

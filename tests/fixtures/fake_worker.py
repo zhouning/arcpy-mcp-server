@@ -16,6 +16,22 @@ for line in sys.stdin:
     tool_id = request["tool_id"]
     if tool_id == "hang":
         time.sleep(60)
+    elif tool_id == "delay":
+        time.sleep(0.25)
+        emit(
+            {
+                "type": "result",
+                "job_id": job_id,
+                "payload": {
+                    "ok": True,
+                    "result": {
+                        "outputs": [],
+                        "value": request["parameters"].get("value"),
+                    },
+                    "messages": {},
+                },
+            }
+        )
     elif tool_id == "fail":
         emit(
             {
