@@ -1,0 +1,500 @@
+tools:
+  - id: inspect.dataset
+    title: Inspect dataset
+    category: inspection
+    description: Return ArcPy Describe metadata, fields, count, extent, and spatial reference.
+    timeout_seconds: 120
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+
+  - id: vector.buffer
+    title: Buffer features
+    category: vector
+    description: Create polygon buffers around input features.
+    timeout_seconds: 600
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+    output: {name_field: output_name, kind: dataset}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, output_name, distance]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        distance: {type: string, minLength: 1, maxLength: 100}
+        dissolve_option: {type: string, enum: [NONE, ALL, LIST]}
+
+  - id: vector.clip
+    title: Clip features
+    category: vector
+    description: Clip input features by a polygon dataset.
+    timeout_seconds: 900
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+      - {artifact_id_field: clip_artifact_id, path_field: clip_path}
+    output: {name_field: output_name, kind: dataset}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, clip_artifact_id, clip_path, output_name]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        clip_artifact_id: {type: string, minLength: 1}
+        clip_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+
+  - id: vector.dissolve
+    title: Dissolve features
+    category: vector
+    description: Aggregate features using optional dissolve fields.
+    timeout_seconds: 900
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+    output: {name_field: output_name, kind: dataset}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, output_name]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        dissolve_fields:
+          type: array
+          items: {type: string, minLength: 1}
+
+  - id: vector.intersect
+    title: Intersect features
+    category: vector
+    description: Compute the geometric intersection of multiple datasets.
+    timeout_seconds: 1800
+    inputs:
+      - {container_field: inputs, artifact_id_field: artifact_id, path_field: path, multiple: true}
+    output: {name_field: output_name, kind: dataset}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [inputs, output_name]
+      properties:
+        inputs: &artifact_inputs
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [artifact_id, path]
+            properties:
+              artifact_id: {type: string, minLength: 1}
+              path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        join_attributes: {type: string, enum: [ALL, NO_FID, ONLY_FID]}
+
+  - id: vector.union
+    title: Union features
+    category: vector
+    description: Compute the geometric union of polygon datasets.
+    timeout_seconds: 1800
+    inputs:
+      - {container_field: inputs, artifact_id_field: artifact_id, path_field: path, multiple: true}
+    output: {name_field: output_name, kind: dataset}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [inputs, output_name]
+      properties:
+        inputs: *artifact_inputs
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        gaps: {type: string, enum: [GAPS, NO_GAPS]}
+
+  - id: vector.spatial_join
+    title: Spatial join
+    category: vector
+    description: Join feature attributes using spatial relationships.
+    timeout_seconds: 1800
+    inputs:
+      - {artifact_id_field: target_artifact_id, path_field: target_path}
+      - {artifact_id_field: join_artifact_id, path_field: join_path}
+    output: {name_field: output_name, kind: dataset}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [target_artifact_id, target_path, join_artifact_id, join_path, output_name]
+      properties:
+        target_artifact_id: {type: string, minLength: 1}
+        target_path: {type: string, minLength: 1}
+        join_artifact_id: {type: string, minLength: 1}
+        join_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        join_operation: {type: string, enum: [JOIN_ONE_TO_ONE, JOIN_ONE_TO_MANY]}
+        match_option: {type: string, minLength: 1}
+
+  - id: vector.project
+    title: Project features
+    category: vector
+    description: Transform features into a target spatial reference.
+    timeout_seconds: 900
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+    output: {name_field: output_name, kind: dataset}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, output_name, output_spatial_reference]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        output_spatial_reference: {oneOf: [{type: integer}, {type: string, minLength: 1}]}
+        geographic_transform: {type: string}
+
+  - id: vector.merge
+    title: Merge features
+    category: vector
+    description: Combine multiple datasets into one output.
+    timeout_seconds: 900
+    inputs:
+      - {container_field: inputs, artifact_id_field: artifact_id, path_field: path, multiple: true}
+    output: {name_field: output_name, kind: dataset}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [inputs, output_name]
+      properties:
+        inputs: *artifact_inputs
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+
+  - id: vector.check_geometry
+    title: Check geometry
+    category: vector
+    description: Write a table of geometry defects.
+    timeout_seconds: 600
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+    output: {name_field: output_name, kind: table}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, output_name]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        validation_method: {type: string, enum: [ESRI, OGC]}
+
+  - id: vector.repair_geometry
+    title: Repair geometry
+    category: vector
+    description: Copy features and repair geometry defects in the isolated output.
+    timeout_seconds: 900
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+    output: {name_field: output_name, kind: dataset}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, output_name]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        delete_null: {type: string, enum: [DELETE_NULL, KEEP_NULL]}
+        validation_method: {type: string, enum: [ESRI, OGC]}
+
+  - id: raster.clip
+    title: Clip raster
+    category: raster
+    description: Clip a raster using a template dataset.
+    timeout_seconds: 1800
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+      - {artifact_id_field: template_artifact_id, path_field: template_path}
+    output: {name_field: output_name, kind: raster}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, template_artifact_id, template_path, output_name]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        template_artifact_id: {type: string, minLength: 1}
+        template_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        clipping_geometry: {type: boolean}
+
+  - id: raster.project
+    title: Project raster
+    category: raster
+    description: Transform a raster into a target spatial reference.
+    timeout_seconds: 3600
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+    output: {name_field: output_name, kind: raster}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, output_name, output_spatial_reference]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        output_spatial_reference: {oneOf: [{type: integer}, {type: string, minLength: 1}]}
+        resampling_type: {type: string, enum: [NEAREST, BILINEAR, CUBIC, MAJORITY]}
+        cell_size: {type: number, exclusiveMinimum: 0}
+
+  - id: raster.resample
+    title: Resample raster
+    category: raster
+    description: Change raster cell size and resampling method.
+    timeout_seconds: 1800
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+    output: {name_field: output_name, kind: raster}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, output_name, cell_size]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        cell_size: {oneOf: [{type: number, exclusiveMinimum: 0}, {type: string, minLength: 1}]}
+        resampling_type: {type: string, enum: [NEAREST, BILINEAR, CUBIC, MAJORITY]}
+
+  - id: raster.extract_by_mask
+    title: Extract raster by mask
+    category: raster
+    description: Extract raster cells covered by a mask.
+    timeout_seconds: 1800
+    required_extensions: [Spatial]
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+      - {artifact_id_field: mask_artifact_id, path_field: mask_path}
+    output: {name_field: output_name, kind: raster}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, mask_artifact_id, mask_path, output_name]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        mask_artifact_id: {type: string, minLength: 1}
+        mask_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+
+  - id: raster.slope
+    title: Calculate slope
+    category: raster
+    description: Derive slope from an elevation raster.
+    timeout_seconds: 1800
+    required_extensions: [Spatial]
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+    output: {name_field: output_name, kind: raster}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, output_name]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        output_measurement: {type: string, enum: [DEGREE, PERCENT_RISE]}
+        z_factor: {type: number, exclusiveMinimum: 0}
+
+  - id: raster.zonal_statistics
+    title: Zonal statistics
+    category: raster
+    description: Summarize raster values by zones into a table.
+    timeout_seconds: 3600
+    required_extensions: [Spatial]
+    inputs:
+      - {artifact_id_field: zone_artifact_id, path_field: zone_path}
+      - {artifact_id_field: value_artifact_id, path_field: value_path}
+    output: {name_field: output_name, kind: table}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [zone_artifact_id, zone_path, zone_field, value_artifact_id, value_path, output_name]
+      properties:
+        zone_artifact_id: {type: string, minLength: 1}
+        zone_path: {type: string, minLength: 1}
+        zone_field: {type: string, minLength: 1}
+        value_artifact_id: {type: string, minLength: 1}
+        value_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        statistics_type: {type: string, enum: [ALL, MEAN, MAXIMUM, MINIMUM, MEDIAN, STD, SUM, VARIETY]}
+
+  - id: raster.mosaic
+    title: Mosaic rasters
+    category: raster
+    description: Combine multiple rasters into a new raster.
+    timeout_seconds: 7200
+    inputs:
+      - {container_field: inputs, artifact_id_field: artifact_id, path_field: path, multiple: true}
+    output: {name_field: output_name, kind: raster}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [inputs, output_name, coordinate_system]
+      properties:
+        inputs: *artifact_inputs
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        coordinate_system: {oneOf: [{type: integer}, {type: string, minLength: 1}]}
+        pixel_type: {type: string, minLength: 1}
+        number_of_bands: {type: integer, minimum: 1}
+
+  - id: map.inspect_aprx
+    title: Inspect ArcGIS Pro project
+    category: map
+    description: List maps and layouts in an APRX project.
+    timeout_seconds: 300
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: aprx_path}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, aprx_path]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        aprx_path: {type: string, minLength: 1}
+
+  - id: map.export_layout
+    title: Export map layout
+    category: map
+    description: Export an exact APRX layout to PDF or PNG.
+    timeout_seconds: 1800
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: aprx_path}
+    output: {name_field: output_name, kind: file}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, aprx_path, layout_name, output_name, format]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        aprx_path: {type: string, minLength: 1}
+        layout_name: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        format: {type: string, enum: [PDF, PNG]}
+        dpi: {type: integer, minimum: 72, maximum: 1200}
+
+  - id: dl.detect_objects
+    title: Detect objects using deep learning
+    category: deep-learning
+    description: Run Image Analyst object detection in CPU mode.
+    timeout_seconds: 21600
+    required_extensions: [ImageAnalyst]
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+      - {artifact_id_field: model_artifact_id, path_field: model_path}
+    output: {name_field: output_name, kind: dataset}
+    parameters: &dl_single_input_schema
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, model_artifact_id, model_path, output_name]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        model_artifact_id: {type: string, minLength: 1}
+        model_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        arguments: {type: string}
+        run_nms: {type: string, enum: [NO_NMS, NMS]}
+        confidence_score_field: {type: string, minLength: 1}
+        class_value_field: {type: string, minLength: 1}
+        max_overlap_ratio: {type: number, minimum: 0, maximum: 1}
+
+  - id: dl.classify_pixels
+    title: Classify pixels using deep learning
+    category: deep-learning
+    description: Classify raster pixels with an ArcGIS model in CPU mode.
+    timeout_seconds: 21600
+    required_extensions: [ImageAnalyst]
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+      - {artifact_id_field: model_artifact_id, path_field: model_path}
+    output: {name_field: output_name, kind: raster}
+    parameters: *dl_single_input_schema
+
+  - id: dl.classify_objects
+    title: Classify objects using deep learning
+    category: deep-learning
+    description: Classify objects with an ArcGIS model in CPU mode.
+    timeout_seconds: 21600
+    required_extensions: [ImageAnalyst]
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+      - {artifact_id_field: model_artifact_id, path_field: model_path}
+    output: {name_field: output_name, kind: dataset}
+    parameters: *dl_single_input_schema
+
+  - id: dl.detect_change
+    title: Detect change using deep learning
+    category: deep-learning
+    description: Detect changes between two rasters in CPU mode.
+    timeout_seconds: 21600
+    required_extensions: [ImageAnalyst]
+    inputs:
+      - {artifact_id_field: from_artifact_id, path_field: from_path}
+      - {artifact_id_field: to_artifact_id, path_field: to_path}
+      - {artifact_id_field: model_artifact_id, path_field: model_path}
+    output: {name_field: output_name, kind: raster}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [from_artifact_id, from_path, to_artifact_id, to_path, model_artifact_id, model_path, output_name]
+      properties:
+        from_artifact_id: {type: string, minLength: 1}
+        from_path: {type: string, minLength: 1}
+        to_artifact_id: {type: string, minLength: 1}
+        to_path: {type: string, minLength: 1}
+        model_artifact_id: {type: string, minLength: 1}
+        model_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        arguments: {type: string}
+
+  - id: dl.translate_pixels
+    title: Translate pixels using deep learning
+    category: deep-learning
+    description: Transform raster pixels with an ArcGIS model in CPU mode.
+    timeout_seconds: 21600
+    required_extensions: [ImageAnalyst]
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+      - {artifact_id_field: model_artifact_id, path_field: model_path}
+    output: {name_field: output_name, kind: raster}
+    parameters: *dl_single_input_schema
+
+  - id: dl.export_training_data
+    title: Export training data
+    category: deep-learning
+    description: Export image chips and labels for external model training.
+    timeout_seconds: 21600
+    required_extensions: [ImageAnalyst]
+    inputs:
+      - {artifact_id_field: input_artifact_id, path_field: input_path}
+    output: {name_field: output_name, kind: archive}
+    parameters:
+      type: object
+      additionalProperties: false
+      required: [input_artifact_id, input_path, output_name, tile_size_x, tile_size_y, stride_x, stride_y, metadata_format]
+      properties:
+        input_artifact_id: {type: string, minLength: 1}
+        input_path: {type: string, minLength: 1}
+        output_name: {type: string, pattern: '^[A-Za-z0-9_.-]+$'}
+        tile_size_x: {type: integer, minimum: 1}
+        tile_size_y: {type: integer, minimum: 1}
+        stride_x: {type: integer, minimum: 1}
+        stride_y: {type: integer, minimum: 1}
+        metadata_format: {type: string, minLength: 1}
+        image_format: {type: string, enum: [TIFF, PNG, JPEG]}
