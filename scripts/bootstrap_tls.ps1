@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ServerIp = "192.168.25.228",
+    [string]$ServerIp,
     [string]$CertificateDirectory = (Join-Path $env:LOCALAPPDATA "ArcPyMCP\certs"),
     [switch]$Rotate
 )
@@ -11,6 +11,17 @@ $projectPython = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $projectPython)) {
     throw "Missing gateway environment. Run scripts\bootstrap.ps1 first."
 }
+
+# No IP is hardcoded: an address baked into the certificate SAN stops matching
+# the moment DHCP hands out a new one, and the client then rejects the
+# connection. Resolve it now so a re-bootstrap tracks the current address.
+if (-not $ServerIp) {
+    $ServerIp = & (Join-Path $PSScriptRoot "resolve_ip.ps1")
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not determine this host's LAN address"
+    }
+}
+
 $arguments = @(
     "-m", "arcpy_mcp_server.tls_bootstrap",
     "--output-dir", $CertificateDirectory,

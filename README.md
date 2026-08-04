@@ -1,13 +1,20 @@
 # ArcPy MCP Server
 
 Authenticated Windows MCP service for invoking an allowlisted set of ArcPy operations from a
-remote Codex client. The gateway exposes Streamable HTTP MCP at
-`https://192.168.25.228:8765/mcp`, persists jobs in SQLite WAL mode, and serializes all ArcPy
-execution through one worker process.
+remote Codex client. The gateway exposes Streamable HTTP MCP at `https://<host-ip>:8765/mcp`,
+persists jobs in SQLite WAL mode, and serializes all ArcPy execution through one worker process.
+
+The publishing address is resolved from the host at bootstrap rather than hardcoded, so a DHCP
+change does not silently break TLS. Print the address the tooling will use:
+
+```powershell
+.\scripts\resolve_ip.ps1
+```
 
 ## Prerequisites
 
-- Windows 10 or 11 with a stable LAN/VPN address of `192.168.25.228`.
+- Windows 10 or 11 with a LAN/VPN address reachable by the client. A fixed DHCP reservation or
+  static address is still recommended, because a mid-session change invalidates the certificate.
 - ArcGIS Pro 3.7.1 with the default environment at
   `D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe`.
 - An ArcGIS Pro Advanced/ArcInfo license. Spatial Analyst is required for raster analysis and
@@ -31,13 +38,41 @@ Run from a normal Windows PowerShell in the repository root:
 .\scripts\status.ps1
 ```
 
-`install_scheduled_task.ps1` requests elevation only when it creates the inbound Windows Firewall
-rule. The rule permits TCP `8765` on the Private profile only from `192.168.25.0/24`. It also
-registers `ArcPyMCPServer` for the current interactive user at logon, with three one-minute restart
-attempts.
+`install_scheduled_task.ps1` requests elevation only when it creates or re-scopes the inbound
+Windows Firewall rule. The rule permits TCP `8765` on the Private profile only from the `/24`
+containing the host's current address. Re-running the script after the address changes re-points an
+existing rule instead of leaving it scoped to the old subnet. It also registers `ArcPyMCPServer` for
+the current interactive user at logon, with three one-minute restart attempts.
 
-The host must keep `192.168.25.228` as a fixed DHCP reservation or static address. Do not expose
-port `8765` directly to the public Internet. Use the trusted LAN or an authenticated VPN.
+Do not expose port `8765` directly to the public Internet. Use the trusted LAN or an authenticated
+VPN.
+
+## When the host address changes
+
+A new address invalidates three things at once: the certificate SAN, the recorded public base URL,
+and the firewall scope. Re-run bootstrap and the installer:
+
+```powershell
+.\scripts\stop.ps1
+.\scripts\bootstrap.ps1
+.\scripts\install_scheduled_task.ps1
+.\scripts\start.ps1
+.\scripts\status.ps1
+```
+
+`bootstrap.ps1` detects the change, rewrites only the `ARCPY_MCP_PUBLIC_BASE_URL` line in
+`server.env` (preserving the Bearer token and signing key), and reissues the certificate for the new
+address. Re-import the regenerated `ca.crt` on the client afterwards; previously issued artifact
+download URLs stop resolving because they embed the old host.
+
+`status.ps1` warns when the configured address no longer matches the host, which is the usual
+explanation for a client TLS failure against a service that otherwise looks healthy.
+
+Address resolution order is `ARCPY_MCP_SERVER_IP`, then the interface serving the default route,
+then the host in `ARCPY_MCP_PUBLIC_BASE_URL`. Auto-detect picks the default-route interface rather
+than the hostname, because a host with VPN, Hyper-V, WSL, or Docker adapters often resolves its own
+name to an address no client can route. Set `ARCPY_MCP_SERVER_IP` to pin one interface. Loopback and
+link-local values are rejected: they bind successfully but no remote client can reach them.
 
 ## macOS Trust
 
@@ -49,7 +84,8 @@ The bootstrap prints the public CA path:
 
 Transfer only `ca.crt` to the macOS client and trust it in the login or system keychain. Never
 transfer `ca.key`, `server.key`, `server.env`, or any signed artifact URL. The Codex plugin connects
-to the fixed IP, so the server certificate has the IP SAN `192.168.25.228` rather than a DNS name.
+to a bare IP, so the server certificate carries an IP SAN for the resolved address rather than a DNS
+name. That SAN is why an address change requires reissuing the certificate.
 
 The client supplies the Bearer value through `ARCPY_MCP_TOKEN`. The server-side corresponding value
 is stored as `ARCPY_MCP_BEARER_TOKEN` in the ACL-restricted `server.env`; it is never committed.
@@ -86,7 +122,7 @@ Import the new `ca.crt` on macOS before reconnecting. Private keys remain under
 .\scripts\stop.ps1
 ```
 
-The public health endpoint is `https://192.168.25.228:8765/healthz`; it exposes only status and
+The public health endpoint is `https://<host-ip>:8765/healthz`; it exposes only status and
 version. `status.ps1` reports the scheduled task, recorded PID, TCP listener, and HTTPS health using
 the local CA.
 

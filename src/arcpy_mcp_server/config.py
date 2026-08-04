@@ -4,6 +4,8 @@ from pathlib import Path
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from arcpy_mcp_server.host_address import resolve_server_ip
+
 
 def _default_local_app_data() -> Path:
     value = os.environ.get("LOCALAPPDATA")
@@ -19,7 +21,13 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    public_base_url: AnyHttpUrl = AnyHttpUrl("https://192.168.25.228:8765")
+    # Derived from the host's current LAN address rather than hardcoded, so a
+    # DHCP change does not leave signed artifact URLs pointing at an address
+    # clients can no longer reach. bootstrap.ps1 writes the resolved value into
+    # server.env; this default keeps a direct `python -m` run working too.
+    public_base_url: AnyHttpUrl = Field(
+        default_factory=lambda: AnyHttpUrl(f"https://{resolve_server_ip()}:8765")
+    )
     bind_host: str = "0.0.0.0"
     bind_port: int = Field(default=8765, ge=1, le=65535)
     arcpy_python: Path = Path(

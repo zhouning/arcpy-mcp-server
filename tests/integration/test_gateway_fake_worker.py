@@ -22,7 +22,7 @@ async def wait_for_terminal(services, job_id, timeout=5):
 
 async def test_gateway_upload_job_and_log_flow_with_fake_worker(tmp_path):
     settings = Settings(
-        public_base_url="https://192.168.25.228:8765",
+        public_base_url="https://198.51.100.10:8765",
         data_root=tmp_path / "data",
         tls_cert=tmp_path / "server.crt",
         tls_key=tmp_path / "server.key",

@@ -11,7 +11,7 @@ from arcpy_mcp_server.models import JobRecord, JobStatus
 
 def make_settings(tmp_path):
     return Settings(
-        public_base_url="https://192.168.25.228:8765",
+        public_base_url="https://198.51.100.10:8765",
         data_root=tmp_path / "data",
         tls_cert=tmp_path / "server.crt",
         tls_key=tmp_path / "server.key",
@@ -102,7 +102,7 @@ async def test_mcp_artifact_and_catalog_workflow(tmp_path):
 
     assert upload.data["committed_size"] == 0
     assert upload.data["upload_url"].startswith(
-        "https://192.168.25.228:8765/artifacts/"
+        "https://198.51.100.10:8765/artifacts/"
     )
     assert described.data["id"] == "vector.buffer"
     assert unknown.is_error

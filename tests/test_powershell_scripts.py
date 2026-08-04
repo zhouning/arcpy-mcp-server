@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -73,7 +74,12 @@ def test_install_script_limits_firewall_and_registers_current_user_task():
     content = script("install_scheduled_task.ps1")
 
     assert "ArcPy MCP 8765" in content
-    assert "192.168.25.0/24" in content
+    # The scope must be derived, never a literal subnet: a rule pinned to a
+    # stale subnet still looks installed while dropping every current client.
+    assert "resolve_ipv4_network" in content
+    assert "Get-LocalSubnet" in content
+    assert "-RemoteAddress $subnet" in content
+    assert "Set-NetFirewallRule" in content  # re-scopes instead of leaving stale
     assert "New-NetFirewallRule" in content
     assert "-Profile Private" in content
     assert "ArcPyMCPServer" in content
@@ -111,3 +117,12 @@ def test_lifecycle_scripts_use_external_config_and_recorded_pid():
     assert "--ssl-no-revoke" in status
     assert "--cacert" in status
     assert "--insecure" not in status
+
+
+def test_no_script_hardcodes_a_lan_address():
+    """A baked-in address is the DHCP-drift bug: TLS breaks when the IP moves."""
+    literal = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+    allowed = {"0.0.0.0", "127.0.0.1"}  # bind-any and loopback are not host IPs
+    for path in sorted(SCRIPTS.glob("*.ps1")):
+        found = set(literal.findall(path.read_text(encoding="utf-8"))) - allowed
+        assert not found, f"{path.name} hardcodes {sorted(found)}"

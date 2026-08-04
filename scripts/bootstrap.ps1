@@ -56,6 +56,15 @@ if (-not (Test-Path -LiteralPath $projectPython)) {
 @($configDirectory, $certificateDirectory, $dataDirectory, $logDirectory) |
     ForEach-Object { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 
+# Resolve once and reuse for the env file, the certificate SAN and the
+# firewall scope, so the three cannot disagree.
+$serverIp = & (Join-Path $PSScriptRoot "resolve_ip.ps1")
+if (-not $serverIp) {
+    throw "Could not determine this host's LAN address"
+}
+$publicBaseUrl = "https://${serverIp}:8765"
+Write-Host "Publishing address: $publicBaseUrl"
+
 if (-not (Test-Path -LiteralPath $environmentFile) -or $RotateSecrets) {
     $tokenBytes = [byte[]]::new(48)
     $signingBytes = [byte[]]::new(48)
@@ -70,7 +79,7 @@ if (-not (Test-Path -LiteralPath $environmentFile) -or $RotateSecrets) {
     $bearerToken = [Convert]::ToBase64String($tokenBytes)
     $signingKey = [Convert]::ToBase64String($signingBytes)
     $lines = @(
-        "ARCPY_MCP_PUBLIC_BASE_URL=https://192.168.25.228:8765",
+        "ARCPY_MCP_PUBLIC_BASE_URL=$publicBaseUrl",
         "ARCPY_MCP_BIND_HOST=0.0.0.0",
         "ARCPY_MCP_BIND_PORT=8765",
         "ARCPY_MCP_ARCPY_PYTHON=D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe",
@@ -87,6 +96,37 @@ if (-not (Test-Path -LiteralPath $environmentFile) -or $RotateSecrets) {
         [Text.UTF8Encoding]::new($false)
     )
 }
+else {
+    # The env file already exists, so it still carries the address from the last
+    # bootstrap. Rewrite just that line -- rewriting the file wholesale would
+    # discard the Bearer token and signing key, invalidating every client and
+    # every already-issued artifact URL.
+    $existing = [IO.File]::ReadAllLines($environmentFile)
+    $updated = $false
+    $rewritten = foreach ($line in $existing) {
+        if ($line -like "ARCPY_MCP_PUBLIC_BASE_URL=*") {
+            if ($line -ne "ARCPY_MCP_PUBLIC_BASE_URL=$publicBaseUrl") {
+                $updated = $true
+                Write-Host "Address changed; was '$($line.Split('=', 2)[1])'."
+            }
+            "ARCPY_MCP_PUBLIC_BASE_URL=$publicBaseUrl"
+        }
+        else {
+            $line
+        }
+    }
+    if ($updated) {
+        [IO.File]::WriteAllLines(
+            $environmentFile,
+            $rewritten,
+            [Text.UTF8Encoding]::new($false)
+        )
+        # The old certificate's SAN names the previous address, so clients would
+        # reject it. Reissue and tell the operator to re-import the CA.
+        $RotateCertificates = $true
+        Write-Host "Certificates will be reissued for the new address."
+    }
+}
 
 & icacls.exe $configDirectory /inheritance:r /grant:r "${env:USERNAME}:(OI)(CI)F" | Out-Null
 if ($LASTEXITCODE -ne 0) {
@@ -94,7 +134,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $tlsArguments = @{
-    ServerIp = "192.168.25.228"
+    ServerIp = $serverIp
     CertificateDirectory = $certificateDirectory
 }
 if ($RotateCertificates) {
@@ -102,5 +142,6 @@ if ($RotateCertificates) {
 }
 & (Join-Path $PSScriptRoot "bootstrap_tls.ps1") @tlsArguments | Out-Null
 
-Write-Host "Bootstrap complete. Import this CA certificate on the macOS client:"
+Write-Host "Bootstrap complete. Gateway address: $publicBaseUrl"
+Write-Host "Import this CA certificate on the client:"
 Write-Host (Join-Path $certificateDirectory "ca.crt")
