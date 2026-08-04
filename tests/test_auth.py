@@ -7,7 +7,7 @@ from arcpy_mcp_server.auth import ArtifactSigner, StaticBearerVerifier
 
 @pytest.mark.asyncio
 async def test_static_bearer_verifier_accepts_only_exact_token():
-    verifier = StaticBearerVerifier("x" * 32, "https://192.168.25.228:8765")
+    verifier = StaticBearerVerifier("x" * 32, "https://198.51.100.10:8765")
 
     accepted = await verifier.verify_token("x" * 32)
     rejected = await verifier.verify_token("x" * 31 + "y")

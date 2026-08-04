@@ -15,7 +15,7 @@ def test_generated_server_certificate_is_signed_for_fixed_ip(tmp_path):
 
     paths = generate_certificates(
         output_dir,
-        ip_address("192.168.25.228"),
+        ip_address("198.51.100.10"),
         repository_root=repository_root,
     )
 
@@ -26,7 +26,7 @@ def test_generated_server_certificate_is_signed_for_fixed_ip(tmp_path):
     assert ca.extensions.get_extension_for_class(
         x509.BasicConstraints
     ).value.ca
-    assert ip_address("192.168.25.228") in server.extensions.get_extension_for_class(
+    assert ip_address("198.51.100.10") in server.extensions.get_extension_for_class(
         x509.SubjectAlternativeName
     ).value.get_values_for_type(x509.IPAddress)
     assert ExtendedKeyUsageOID.SERVER_AUTH in server.extensions.get_extension_for_class(
@@ -44,10 +44,10 @@ def test_generated_server_certificate_is_signed_for_fixed_ip(tmp_path):
 
 def test_certificate_bootstrap_is_idempotent_without_rotation(tmp_path):
     output_dir = tmp_path / "certs"
-    first = generate_certificates(output_dir, ip_address("192.168.25.228"))
+    first = generate_certificates(output_dir, ip_address("198.51.100.10"))
     original = first.server_certificate.read_bytes()
 
-    second = generate_certificates(output_dir, ip_address("192.168.25.228"))
+    second = generate_certificates(output_dir, ip_address("198.51.100.10"))
 
     assert second == first
     assert second.server_certificate.read_bytes() == original
@@ -60,7 +60,7 @@ def test_private_keys_cannot_be_written_inside_repository(tmp_path):
     with pytest.raises(ValueError, match="outside the repository"):
         generate_certificates(
             output_dir,
-            ip_address("192.168.25.228"),
+            ip_address("198.51.100.10"),
             repository_root=repository_root,
         )
 
