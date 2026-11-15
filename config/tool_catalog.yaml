@@ -250,6 +250,8 @@ tools:
         output_spatial_reference: {oneOf: [{type: integer}, {type: string, minLength: 1}]}
         resampling_type: {type: string, enum: [NEAREST, BILINEAR, CUBIC, MAJORITY]}
         cell_size: {type: number, exclusiveMinimum: 0}
+        geographic_transform: {type: string, minLength: 1}
+        registration_point: {type: string, pattern: '^-?[0-9.]+ -?[0-9.]+$'}
 
   - id: raster.resample
     title: Resample raster

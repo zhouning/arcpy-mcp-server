@@ -203,12 +203,17 @@ def clip_raster(arcpy, parameters):
 
 
 def project_raster(arcpy, parameters):
+    # geographic_transform: needed when the datums differ (ArcGIS otherwise applies none and the
+    # result is shifted without an error); same field as vector.project.
+    # registration_point: "x y" that the output cell grid is aligned to.
     arcpy.management.ProjectRaster(
         parameters["input_path"],
         parameters["output_path"],
         parameters["output_spatial_reference"],
         parameters.get("resampling_type", "NEAREST"),
         parameters.get("cell_size"),
+        parameters.get("geographic_transform"),
+        parameters.get("registration_point"),
     )
     return {"outputs": [parameters["output_path"]]}
 
@@ -223,10 +228,22 @@ def resample_raster(arcpy, parameters):
     return {"outputs": [parameters["output_path"]]}
 
 
+def _mask_dataset(arcpy, mask_path, work_dir):
+    """ExtractByMask takes a raster or a feature class; a GeoJSON mask is converted first."""
+    if not str(mask_path).lower().endswith((".geojson", ".json")):
+        return mask_path
+    import os
+
+    converted = os.path.join(work_dir, "mask_from_geojson.shp")
+    arcpy.conversion.JSONToFeatures(mask_path, converted, "POLYGON")
+    return converted
+
+
 def extract_by_mask(arcpy, parameters):
+    mask = _mask_dataset(arcpy, parameters["mask_path"], parameters["work_dir"])
     with checked_out_extension(arcpy, "Spatial"):
         result = arcpy.sa.ExtractByMask(
-            parameters["input_path"], parameters["mask_path"]
+            parameters["input_path"], mask
         )
         result.save(parameters["output_path"])
     return {"outputs": [parameters["output_path"]]}
