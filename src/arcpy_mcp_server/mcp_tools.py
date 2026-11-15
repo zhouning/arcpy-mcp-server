@@ -379,8 +379,12 @@ def register_tools(mcp: FastMCP, services: ToolServices) -> None:
         output_spatial_reference: int | str,
         resampling_type: str = "NEAREST",
         cell_size: float | None = None,
+        geographic_transform: str | None = None,
+        registration_point: str | None = None,
     ) -> dict:
-        """Project an uploaded raster into another spatial reference."""
+        """Project an uploaded raster into another spatial reference.
+
+        Pass geographic_transform when the source and target datums differ."""
         parameters = {
             "input_artifact_id": input_artifact_id,
             "input_path": input_path,
@@ -390,6 +394,10 @@ def register_tools(mcp: FastMCP, services: ToolServices) -> None:
         }
         if cell_size is not None:
             parameters["cell_size"] = cell_size
+        if geographic_transform is not None:
+            parameters["geographic_transform"] = geographic_transform
+        if registration_point is not None:
+            parameters["registration_point"] = registration_point
         return await submit_dedicated("raster.project", parameters)
 
     @mcp.tool()
